@@ -1,0 +1,73 @@
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+    margin: 0;
+}
+
+.container {
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+}
+
+.controls {
+    margin: 1.5rem 0;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+button {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#startBtn {
+    background-color: #e53e3e;
+    color: white;
+}
+
+#startBtn:hover {
+    background-color: #c53030;
+}
+
+#stopBtn {
+    background-color: #3182ce;
+    color: white;
+}
+
+#stopBtn:hover {
+    background-color: #2b6cb0;
+}
+
+button:disabled {
+    background-color: #cbd5e0;
+    cursor: not-allowed;
+}
+
+.status-panel {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background-color: #edf2f7;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+#sheet-music-output {
+    margin-top: 2rem;
+    overflow-x: auto; /* Allows scrolling if the staff gets too wide */
+    background: white;
+}
