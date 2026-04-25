@@ -5,21 +5,93 @@ let midiAccess = null;
 let isRecording = false;
 let recordedNotes = [];
 let activeNotes = {};
-let recordingStartTime = 0;
+
+// We will render 3 octaves starting from C3 (MIDI 48) to B5 (MIDI 83)
+const START_NOTE = 48; 
+const END_NOTE = 83;   
 
 // --- DOM Elements ---
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const statusText = document.getElementById('status');
 const outputDiv = document.getElementById('sheet-music-output');
+const pianoContainer = document.getElementById('piano');
 
 // --- Initialization ---
+setupVirtualPiano();
+
 navigator.requestMIDIAccess()
     .then(onMIDISuccess)
     .catch(onMIDIFailure);
 
+// --- Virtual Piano Logic ---
+function isBlackKey(midiNote) {
+    const noteInOctave = midiNote % 12;
+    // MIDI numbers corresponding to black keys in any octave
+    return [1, 3, 6, 8, 10].includes(noteInOctave);
+}
+
+function setupVirtualPiano() {
+    pianoContainer.innerHTML = ""; // Clear if re-rendering
+
+    for (let i = START_NOTE; i <= END_NOTE; i++) {
+        const keyElement = document.createElement('div');
+        keyElement.classList.add('key');
+        keyElement.classList.add(isBlackKey(i) ? 'black-key' : 'white-key');
+        keyElement.id = `key-${i}`;
+        
+        // Allow mouse clicks to simulate MIDI events
+        keyElement.addEventListener('mousedown', () => triggerNoteOn(i));
+        keyElement.addEventListener('mouseup', () => triggerNoteOff(i));
+        keyElement.addEventListener('mouseleave', () => triggerNoteOff(i));
+
+        pianoContainer.appendChild(keyElement);
+    }
+}
+
+// --- Unified Note Handling (MIDI + Mouse) ---
+function triggerNoteOn(note) {
+    // Only process if the note is within our virtual keyboard range
+    if (note < START_NOTE || note > END_NOTE) return;
+
+    if (!activeNotes[note]) {
+        activeNotes[note] = performance.now();
+        
+        // Light up the key
+        const keyEl = document.getElementById(`key-${note}`);
+        if (keyEl) keyEl.classList.add('active');
+    }
+}
+
+function triggerNoteOff(note) {
+    if (note < START_NOTE || note > END_NOTE) return;
+
+    if (activeNotes[note]) {
+        const duration = performance.now() - activeNotes[note];
+        
+        // Only save to sheet music if we are currently recording
+        if (isRecording) {
+            recordedNotes.push({ pitch: note, duration: duration });
+        }
+        
+        delete activeNotes[note];
+        
+        // Turn off the light
+        const keyEl = document.getElementById(`key-${note}`);
+        if (keyEl) keyEl.classList.remove('active');
+    }
+}
+
+// --- MIDI Connection Handling ---
 function onMIDISuccess(access) {
     midiAccess = access;
+    
+    // Listen for devices plugging in/out
+    midiAccess.onstatechange = updateDeviceStatus;
+    updateDeviceStatus();
+}
+
+function updateDeviceStatus() {
     const inputs = midiAccess.inputs.values();
     let hasInput = false;
 
@@ -31,25 +103,37 @@ function onMIDISuccess(access) {
     if (hasInput) {
         statusText.innerText = "Status: MIDI Connected. Ready to record.";
     } else {
-        statusText.innerText = "Status: MIDI Access granted, but no keyboard detected.";
+        statusText.innerText = "Status: Waiting for a MIDI connection (Keyboard visually functional).";
     }
 }
 
 function onMIDIFailure() {
-    statusText.innerText = "Status: Could not access MIDI devices. Check browser permissions.";
+    statusText.innerText = "Status: MIDI failed. You can still use your mouse to play the virtual piano.";
 }
 
-// --- Event Listeners ---
+function onMIDIMessage(message) {
+    const command = message.data[0];
+    const note = message.data[1];
+    const velocity = (message.data.length > 2) ? message.data[2] : 0; 
+
+    // Note On (144) or Note Off (128 / 144 with 0 velocity)
+    if (command === 144 && velocity > 0) {
+        triggerNoteOn(note);
+    } else if (command === 128 || (command === 144 && velocity === 0)) {
+        triggerNoteOff(note);
+    }
+}
+
+// --- Recording Controls ---
 startBtn.addEventListener('click', () => {
     isRecording = true;
     recordedNotes = [];
     activeNotes = {};
-    recordingStartTime = performance.now();
     
     startBtn.disabled = true;
     stopBtn.disabled = false;
-    outputDiv.innerHTML = ""; // Clear previous render
-    statusText.innerText = "Status: Recording... Play your melody!";
+    outputDiv.innerHTML = ""; 
+    statusText.innerText = "Status: Recording... Play the virtual or physical keyboard!";
 });
 
 stopBtn.addEventListener('click', () => {
@@ -58,32 +142,10 @@ stopBtn.addEventListener('click', () => {
     
     startBtn.disabled = false;
     stopBtn.disabled = true;
-    statusText.innerText = "Status: Processing and Rendering...";
+    statusText.innerText = "Status: Processing and Rendering Sheet Music...";
     
     renderSheetMusic(recordedNotes);
 });
-
-// --- MIDI Handling ---
-function onMIDIMessage(message) {
-    if (!isRecording) return;
-
-    const command = message.data[0];
-    const note = message.data[1];
-    const velocity = (message.data.length > 2) ? message.data[2] : 0; 
-
-    // Note On
-    if (command === 144 && velocity > 0) {
-        activeNotes[note] = performance.now();
-    } 
-    // Note Off
-    else if (command === 128 || (command === 144 && velocity === 0)) {
-        if (activeNotes[note]) {
-            const duration = performance.now() - activeNotes[note];
-            recordedNotes.push({ pitch: note, duration: duration });
-            delete activeNotes[note];
-        }
-    }
-}
 
 // --- Translation & Quantization ---
 function getVexFlowPitch(midiNote) {
@@ -111,10 +173,7 @@ function renderSheetMusic(notesData) {
         return;
     }
 
-    // 1. Setup Renderer
     const renderer = new VF.Renderer(outputDiv, VF.Renderer.Backends.SVG);
-    
-    // Dynamically size width based on how many notes were played
     const staveWidth = Math.max(500, notesData.length * 80); 
     renderer.resize(staveWidth + 50, 200);
     
@@ -122,7 +181,6 @@ function renderSheetMusic(notesData) {
     const stave = new VF.Stave(10, 40, staveWidth);
     stave.addClef("treble").setContext(context).draw();
 
-    // 2. Map Data to VexFlow Notes
     let totalBeats = 0;
     const vexFlowNotes = notesData.map(note => {
         const pitchStr = getVexFlowPitch(note.pitch);
@@ -136,7 +194,6 @@ function renderSheetMusic(notesData) {
             duration: timingInfo.durationStr 
         });
 
-        // Add accidentals if the note is sharp
         if (pitchStr.includes("#")) {
             staveNote.addModifier(new VF.Accidental("#"));
         }
@@ -144,14 +201,12 @@ function renderSheetMusic(notesData) {
         return staveNote;
     });
 
-    // 3. Create Voice and Draw
     const voice = new VF.Voice({ 
         num_beats: totalBeats, 
         beat_value: 4, 
         resolution: VF.RESOLUTION 
     });
     
-    // strict mode is false so we don't have to perfectly match 4/4 measure counts
     voice.setStrict(false); 
     voice.addTickables(vexFlowNotes);
 
