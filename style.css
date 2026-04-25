@@ -14,7 +14,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     width: 100%;
-    max-width: 800px;
+    max-width: 900px;
     text-align: center;
 }
 
@@ -35,28 +35,13 @@ button {
     transition: background-color 0.2s;
 }
 
-#startBtn {
-    background-color: #e53e3e;
-    color: white;
-}
+#startBtn { background-color: #e53e3e; color: white; }
+#startBtn:hover { background-color: #c53030; }
 
-#startBtn:hover {
-    background-color: #c53030;
-}
+#stopBtn { background-color: #3182ce; color: white; }
+#stopBtn:hover { background-color: #2b6cb0; }
 
-#stopBtn {
-    background-color: #3182ce;
-    color: white;
-}
-
-#stopBtn:hover {
-    background-color: #2b6cb0;
-}
-
-button:disabled {
-    background-color: #cbd5e0;
-    cursor: not-allowed;
-}
+button:disabled { background-color: #cbd5e0; cursor: not-allowed; }
 
 .status-panel {
     margin-bottom: 1.5rem;
@@ -66,54 +51,55 @@ button:disabled {
     font-family: monospace;
 }
 
-#sheet-music-output {
-    margin-top: 2rem;
-    overflow-x: auto; /* Allows scrolling if the staff gets too wide */
-    background: white;
-}
 /* --- Virtual Piano Styles --- */
-.piano {
+.piano-wrapper {
+    width: 100%;
+    overflow-x: auto; /* Allows horizontal scrolling if the piano is wider than the screen */
+    padding: 20px 0;
     display: flex;
     justify-content: center;
-    margin: 2rem 0;
-    user-select: none; /* Prevents text selection when clicking keys */
-    overflow-x: auto;  /* Scroll if screen is too small */
-    padding-bottom: 10px;
+}
+
+.piano {
+    position: relative;
+    height: 150px; /* Fixed height for the keys */
+    /* Width is set dynamically by JavaScript */
 }
 
 .key {
-    border: 1px solid #333;
+    position: absolute;
+    top: 0;
     border-radius: 0 0 4px 4px;
     cursor: pointer;
-    transition: background-color 0.1s ease;
-    flex-shrink: 0;
+    box-sizing: border-box;
+    transition: background-color 0.1s;
+    user-select: none;
 }
 
 .white-key {
-    width: 40px;
-    height: 150px;
     background-color: #fff;
+    border: 1px solid #333;
     z-index: 1;
 }
 
-/* Color when a white key is pressed */
 .white-key.active {
-    background-color: #4299e1; /* A nice midiano-style blue */
+    background-color: #4299e1; /* Blue */
     box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
 }
 
 .black-key {
-    width: 26px;
-    height: 100px;
     background-color: #2d3748;
+    border: 1px solid #000;
     z-index: 2;
-    position: relative;
-    margin-left: -13px; /* Pulls it over the left white key */
-    margin-right: -13px; /* Pulls it over the right white key */
 }
 
-/* Color when a black key is pressed */
 .black-key.active {
-    background-color: #63b3ed; /* Lighter blue for contrast */
+    background-color: #63b3ed; /* Light Blue */
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+}
+
+#sheet-music-output {
+    margin-top: 2rem;
+    overflow-x: auto;
+    background: white;
 }
