@@ -6,9 +6,9 @@ let isRecording = false;
 let recordedNotes = [];
 let activeNotes = {};
 
-// We will render 3 octaves starting from C3 (MIDI 48) to B5 (MIDI 83)
+// 3 Octaves: C3 to C6
 const START_NOTE = 48; 
-const END_NOTE = 83;   
+const END_NOTE = 84;   
 
 // --- DOM Elements ---
 const startBtn = document.getElementById('startBtn');
@@ -18,46 +18,71 @@ const outputDiv = document.getElementById('sheet-music-output');
 const pianoContainer = document.getElementById('piano');
 
 // --- Initialization ---
-setupVirtualPiano();
+buildPianoUI();
 
 navigator.requestMIDIAccess()
     .then(onMIDISuccess)
     .catch(onMIDIFailure);
 
-// --- Virtual Piano Logic ---
+// --- Piano UI Builder (Absolute Positioning Math) ---
 function isBlackKey(midiNote) {
     const noteInOctave = midiNote % 12;
-    // MIDI numbers corresponding to black keys in any octave
     return [1, 3, 6, 8, 10].includes(noteInOctave);
 }
 
-function setupVirtualPiano() {
-    pianoContainer.innerHTML = ""; // Clear if re-rendering
+function buildPianoUI() {
+    pianoContainer.innerHTML = ""; 
+    
+    const whiteKeyWidth = 40;
+    const whiteKeyHeight = 150;
+    const blackKeyWidth = 24;
+    const blackKeyHeight = 95;
+    
+    let whiteKeyCount = 0;
+
+    // First pass: Count total white keys to set container width
+    for (let i = START_NOTE; i <= END_NOTE; i++) {
+        if (!isBlackKey(i)) whiteKeyCount++;
+    }
+    pianoContainer.style.width = `${whiteKeyCount * whiteKeyWidth}px`;
+
+    // Second pass: Draw the keys
+    let currentWhiteKeyIndex = 0;
 
     for (let i = START_NOTE; i <= END_NOTE; i++) {
-        const keyElement = document.createElement('div');
-        keyElement.classList.add('key');
-        keyElement.classList.add(isBlackKey(i) ? 'black-key' : 'white-key');
-        keyElement.id = `key-${i}`;
-        
-        // Allow mouse clicks to simulate MIDI events
-        keyElement.addEventListener('mousedown', () => triggerNoteOn(i));
-        keyElement.addEventListener('mouseup', () => triggerNoteOff(i));
-        keyElement.addEventListener('mouseleave', () => triggerNoteOff(i));
+        const keyEl = document.createElement('div');
+        keyEl.classList.add('key');
+        keyEl.id = `key-${i}`;
 
-        pianoContainer.appendChild(keyElement);
+        if (isBlackKey(i)) {
+            keyEl.classList.add('black-key');
+            keyEl.style.width = `${blackKeyWidth}px`;
+            keyEl.style.height = `${blackKeyHeight}px`;
+            // Center the black key perfectly over the seam of the previous white key
+            keyEl.style.left = `${(currentWhiteKeyIndex * whiteKeyWidth) - (blackKeyWidth / 2)}px`;
+        } else {
+            keyEl.classList.add('white-key');
+            keyEl.style.width = `${whiteKeyWidth}px`;
+            keyEl.style.height = `${whiteKeyHeight}px`;
+            keyEl.style.left = `${currentWhiteKeyIndex * whiteKeyWidth}px`;
+            currentWhiteKeyIndex++; 
+        }
+
+        // Mouse interactions
+        keyEl.addEventListener('mousedown', () => triggerNoteOn(i));
+        keyEl.addEventListener('mouseup', () => triggerNoteOff(i));
+        keyEl.addEventListener('mouseleave', () => triggerNoteOff(i));
+
+        pianoContainer.appendChild(keyEl);
     }
 }
 
-// --- Unified Note Handling (MIDI + Mouse) ---
+// --- Note Handling (Shared by MIDI and Mouse) ---
 function triggerNoteOn(note) {
-    // Only process if the note is within our virtual keyboard range
     if (note < START_NOTE || note > END_NOTE) return;
 
     if (!activeNotes[note]) {
         activeNotes[note] = performance.now();
-        
-        // Light up the key
         const keyEl = document.getElementById(`key-${note}`);
         if (keyEl) keyEl.classList.add('active');
     }
@@ -69,24 +94,20 @@ function triggerNoteOff(note) {
     if (activeNotes[note]) {
         const duration = performance.now() - activeNotes[note];
         
-        // Only save to sheet music if we are currently recording
         if (isRecording) {
             recordedNotes.push({ pitch: note, duration: duration });
         }
         
         delete activeNotes[note];
         
-        // Turn off the light
         const keyEl = document.getElementById(`key-${note}`);
         if (keyEl) keyEl.classList.remove('active');
     }
 }
 
-// --- MIDI Connection Handling ---
+// --- MIDI Setup ---
 function onMIDISuccess(access) {
     midiAccess = access;
-    
-    // Listen for devices plugging in/out
     midiAccess.onstatechange = updateDeviceStatus;
     updateDeviceStatus();
 }
@@ -100,15 +121,13 @@ function updateDeviceStatus() {
         hasInput = true;
     }
 
-    if (hasInput) {
-        statusText.innerText = "Status: MIDI Connected. Ready to record.";
-    } else {
-        statusText.innerText = "Status: Waiting for a MIDI connection (Keyboard visually functional).";
-    }
+    statusText.innerText = hasInput 
+        ? "Status: MIDI Connected. Ready to record." 
+        : "Status: Waiting for MIDI keyboard... (Mouse piano is active)";
 }
 
 function onMIDIFailure() {
-    statusText.innerText = "Status: MIDI failed. You can still use your mouse to play the virtual piano.";
+    statusText.innerText = "Status: MIDI access denied. Mouse piano is active.";
 }
 
 function onMIDIMessage(message) {
@@ -116,7 +135,6 @@ function onMIDIMessage(message) {
     const note = message.data[1];
     const velocity = (message.data.length > 2) ? message.data[2] : 0; 
 
-    // Note On (144) or Note Off (128 / 144 with 0 velocity)
     if (command === 144 && velocity > 0) {
         triggerNoteOn(note);
     } else if (command === 128 || (command === 144 && velocity === 0)) {
@@ -124,7 +142,7 @@ function onMIDIMessage(message) {
     }
 }
 
-// --- Recording Controls ---
+// --- Recording & Rendering ---
 startBtn.addEventListener('click', () => {
     isRecording = true;
     recordedNotes = [];
@@ -133,7 +151,7 @@ startBtn.addEventListener('click', () => {
     startBtn.disabled = true;
     stopBtn.disabled = false;
     outputDiv.innerHTML = ""; 
-    statusText.innerText = "Status: Recording... Play the virtual or physical keyboard!";
+    statusText.innerText = "Status: 🔴 RECORDING... Play some notes!";
 });
 
 stopBtn.addEventListener('click', () => {
@@ -142,12 +160,12 @@ stopBtn.addEventListener('click', () => {
     
     startBtn.disabled = false;
     stopBtn.disabled = true;
-    statusText.innerText = "Status: Processing and Rendering Sheet Music...";
+    statusText.innerText = "Status: Generating sheet music...";
     
     renderSheetMusic(recordedNotes);
 });
 
-// --- Translation & Quantization ---
+// --- VexFlow Logic ---
 function getVexFlowPitch(midiNote) {
     const noteNames = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
     const name = noteNames[midiNote % 12];
@@ -166,10 +184,9 @@ function getVexFlowDurationInfo(durationMs, bpm = 120) {
     return { durationStr: "16", beats: 0.25 };
 }
 
-// --- SVG Rendering ---
 function renderSheetMusic(notesData) {
     if (notesData.length === 0) {
-        statusText.innerText = "Status: No notes were recorded.";
+        statusText.innerText = "Status: No notes played. Recording empty.";
         return;
     }
 
@@ -197,7 +214,6 @@ function renderSheetMusic(notesData) {
         if (pitchStr.includes("#")) {
             staveNote.addModifier(new VF.Accidental("#"));
         }
-
         return staveNote;
     });
 
@@ -213,5 +229,5 @@ function renderSheetMusic(notesData) {
     new VF.Formatter().joinVoices([voice]).format([voice], staveWidth - 50);
     voice.draw(context, stave);
 
-    statusText.innerText = `Status: Generated sheet music for ${notesData.length} notes.`;
+    statusText.innerText = `Status: Sheet music generated (${notesData.length} notes).`;
 }
