@@ -71,3 +71,49 @@ button:disabled {
     overflow-x: auto; /* Allows scrolling if the staff gets too wide */
     background: white;
 }
+/* --- Virtual Piano Styles --- */
+.piano {
+    display: flex;
+    justify-content: center;
+    margin: 2rem 0;
+    user-select: none; /* Prevents text selection when clicking keys */
+    overflow-x: auto;  /* Scroll if screen is too small */
+    padding-bottom: 10px;
+}
+
+.key {
+    border: 1px solid #333;
+    border-radius: 0 0 4px 4px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    flex-shrink: 0;
+}
+
+.white-key {
+    width: 40px;
+    height: 150px;
+    background-color: #fff;
+    z-index: 1;
+}
+
+/* Color when a white key is pressed */
+.white-key.active {
+    background-color: #4299e1; /* A nice midiano-style blue */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
+
+.black-key {
+    width: 26px;
+    height: 100px;
+    background-color: #2d3748;
+    z-index: 2;
+    position: relative;
+    margin-left: -13px; /* Pulls it over the left white key */
+    margin-right: -13px; /* Pulls it over the right white key */
+}
+
+/* Color when a black key is pressed */
+.black-key.active {
+    background-color: #63b3ed; /* Lighter blue for contrast */
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+}
