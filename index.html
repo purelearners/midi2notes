@@ -10,15 +10,19 @@
 <body>
     <div class="container">
         <h1>MIDI Recorder</h1>
+        
         <div class="controls">
             <button id="startBtn">🔴 Start Recording</button>
             <button id="stopBtn" disabled>⏹️ Stop & Render</button>
         </div>
+        
         <div class="status-panel">
-            <p id="status">Status: Waiting for MIDI connection...</p>
+            <p id="status">Status: Loading...</p>
         </div>
         
-        <div id="piano" class="piano"></div>
+        <div class="piano-wrapper">
+            <div id="piano" class="piano"></div>
+        </div>
         
         <div id="sheet-music-output"></div>
     </div>
