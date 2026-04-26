@@ -1,13 +1,9 @@
-// Wait for the HTML to fully load before running our script
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 1. Safety Check for VexFlow ---
-    const statusText = document.getElementById('status');
     if (typeof Vex === 'undefined') {
-        statusText.innerText = "Error: VexFlow library failed to load. Check your internet connection or adblocker.";
-        return; // Stop execution here so we don't crash
+        document.getElementById('status').innerText = "Error: VexFlow library failed to load.";
+        return; 
     }
-    
     const VF = Vex.Flow;
 
     // --- State Variables ---
@@ -16,47 +12,34 @@ document.addEventListener('DOMContentLoaded', () => {
     let recordedNotes = [];
     let activeNotes = {};
 
-    // 3 Octaves: C3 to C6
-    const START_NOTE = 48; 
-    const END_NOTE = 84;   
+    const START_NOTE = 36; // Expanded range to C2 (Bass)
+    const END_NOTE = 84;   // Up to C6 (Treble)
 
     // --- DOM Elements ---
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const statusText = document.getElementById('status');
     const outputDiv = document.getElementById('sheet-music-output');
     const pianoContainer = document.getElementById('piano');
+    const showNamesCheck = document.getElementById('showNamesCheck');
 
     // --- Initialization ---
-    try {
-        buildPianoUI();
-    } catch (error) {
-        statusText.innerText = "Error building piano interface. Check console.";
-        console.error(error);
-    }
+    buildPianoUI();
 
-    // --- 2. Safety Check for Web MIDI API ---
     if (navigator.requestMIDIAccess) {
-        navigator.requestMIDIAccess()
-            .then(onMIDISuccess)
-            .catch(onMIDIFailure);
+        navigator.requestMIDIAccess().then(onMIDISuccess).catch(onMIDIFailure);
     } else {
-        statusText.innerText = "Status: Web MIDI is not supported in your browser. (Mouse piano is active!)";
+        statusText.innerText = "Status: Web MIDI not supported. Use mouse.";
     }
 
     // --- Piano UI Builder ---
     function isBlackKey(midiNote) {
-        const noteInOctave = midiNote % 12;
-        return [1, 3, 6, 8, 10].includes(noteInOctave);
+        return [1, 3, 6, 8, 10].includes(midiNote % 12);
     }
 
     function buildPianoUI() {
         pianoContainer.innerHTML = ""; 
-        
-        const whiteKeyWidth = 40;
-        const whiteKeyHeight = 150;
-        const blackKeyWidth = 24;
-        const blackKeyHeight = 95;
-        
+        const whiteKeyWidth = 40, whiteKeyHeight = 150, blackKeyWidth = 24, blackKeyHeight = 95;
         let whiteKeyCount = 0;
 
         for (let i = START_NOTE; i <= END_NOTE; i++) {
@@ -65,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pianoContainer.style.width = `${whiteKeyCount * whiteKeyWidth}px`;
 
         let currentWhiteKeyIndex = 0;
-
         for (let i = START_NOTE; i <= END_NOTE; i++) {
             const keyEl = document.createElement('div');
             keyEl.classList.add('key');
@@ -84,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentWhiteKeyIndex++; 
             }
 
-            // Mouse interactions
             keyEl.addEventListener('mousedown', () => triggerNoteOn(i));
             keyEl.addEventListener('mouseup', () => triggerNoteOff(i));
             keyEl.addEventListener('mouseleave', () => triggerNoteOff(i));
@@ -93,12 +74,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Note Handling ---
+    // --- Note Handling (MIDI & Mouse) ---
     function triggerNoteOn(note) {
         if (note < START_NOTE || note > END_NOTE) return;
-
         if (!activeNotes[note]) {
-            activeNotes[note] = performance.now();
+            // Track exact start time for chord grouping
+            activeNotes[note] = performance.now(); 
             const keyEl = document.getElementById(`key-${note}`);
             if (keyEl) keyEl.classList.add('active');
         }
@@ -106,22 +87,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function triggerNoteOff(note) {
         if (note < START_NOTE || note > END_NOTE) return;
-
         if (activeNotes[note]) {
-            const duration = performance.now() - activeNotes[note];
+            const startTime = activeNotes[note];
+            const duration = performance.now() - startTime;
             
             if (isRecording) {
-                recordedNotes.push({ pitch: note, duration: duration });
+                // Save the start time so we know if multiple notes were pressed at once
+                recordedNotes.push({ pitch: note, duration: duration, startTime: startTime });
             }
             
             delete activeNotes[note];
-            
             const keyEl = document.getElementById(`key-${note}`);
             if (keyEl) keyEl.classList.remove('active');
         }
     }
 
-    // --- MIDI Setup ---
+    // --- MIDI Connection ---
     function onMIDISuccess(access) {
         midiAccess = access;
         midiAccess.onstatechange = updateDeviceStatus;
@@ -131,54 +112,40 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateDeviceStatus() {
         const inputs = midiAccess.inputs.values();
         let hasInput = false;
-
         for (let input = inputs.next(); input && !input.done; input = inputs.next()) {
             input.value.onmidimessage = onMIDIMessage;
             hasInput = true;
         }
-
-        statusText.innerText = hasInput 
-            ? "Status: MIDI Connected. Ready to record." 
-            : "Status: Waiting for MIDI keyboard... (Mouse piano is active!)";
+        statusText.innerText = hasInput ? "Status: MIDI Connected." : "Status: Waiting for MIDI... (Mouse active)";
     }
 
-    function onMIDIFailure(error) {
-        console.error("MIDI Failure:", error);
-        statusText.innerText = "Status: MIDI access denied. Are you running this via a local file? (Mouse piano is active!)";
+    function onMIDIFailure() {
+        statusText.innerText = "Status: MIDI denied. (Mouse active)";
     }
 
     function onMIDIMessage(message) {
         const command = message.data[0];
         const note = message.data[1];
-        const velocity = (message.data.length > 2) ? message.data[2] : 0; 
-
-        if (command === 144 && velocity > 0) {
-            triggerNoteOn(note);
-        } else if (command === 128 || (command === 144 && velocity === 0)) {
-            triggerNoteOff(note);
-        }
+        const velocity = message.data.length > 2 ? message.data[2] : 0; 
+        if (command === 144 && velocity > 0) triggerNoteOn(note);
+        else if (command === 128 || (command === 144 && velocity === 0)) triggerNoteOff(note);
     }
 
-    // --- Recording & Rendering ---
+    // --- Controls ---
     startBtn.addEventListener('click', () => {
         isRecording = true;
         recordedNotes = [];
         activeNotes = {};
-        
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
+        startBtn.disabled = true; stopBtn.disabled = false;
         outputDiv.innerHTML = ""; 
-        statusText.innerText = "Status: 🔴 RECORDING... Play some notes!";
+        statusText.innerText = "Status: 🔴 RECORDING... Play chords or melodies!";
     });
 
     stopBtn.addEventListener('click', () => {
         if (!isRecording) return;
         isRecording = false;
-        
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-        statusText.innerText = "Status: Generating sheet music...";
-        
+        startBtn.disabled = false; stopBtn.disabled = true;
+        statusText.innerText = "Status: Generating Grand Staff...";
         renderSheetMusic(recordedNotes);
     });
 
@@ -190,10 +157,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${name}/${octave}`;
     }
 
+    function getPitchNameOnly(midiNote) {
+        const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        return noteNames[midiNote % 12];
+    }
+
     function getVexFlowDurationInfo(durationMs, bpm = 120) {
         const quarterNoteMs = 60000 / bpm; 
         const ratio = durationMs / quarterNoteMs;
-
         if (ratio >= 3.0) return { durationStr: "w", beats: 4 };
         if (ratio >= 1.5) return { durationStr: "h", beats: 2 };
         if (ratio >= 0.75) return { durationStr: "q", beats: 1 };
@@ -201,52 +172,129 @@ document.addEventListener('DOMContentLoaded', () => {
         return { durationStr: "16", beats: 0.25 };
     }
 
+    // Algorithm to group overlapping notes into Chords
+    function groupNotesIntoChords(notesArray) {
+        if (notesArray.length === 0) return [];
+        
+        // Sort by time played
+        notesArray.sort((a, b) => a.startTime - b.startTime);
+        
+        let chords = [];
+        let currentChord = [notesArray[0]];
+
+        for (let i = 1; i < notesArray.length; i++) {
+            const note = notesArray[i];
+            // If the note was played within 60ms of the first note in the group, it's a chord!
+            if (Math.abs(note.startTime - currentChord[0].startTime) < 60) {
+                currentChord.push(note);
+            } else {
+                chords.push(currentChord);
+                currentChord = [note];
+            }
+        }
+        if (currentChord.length > 0) chords.push(currentChord);
+        return chords;
+    }
+
+    // --- The Grand Staff Renderer ---
     function renderSheetMusic(notesData) {
         if (notesData.length === 0) {
-            statusText.innerText = "Status: No notes played. Recording empty.";
+            statusText.innerText = "Status: No notes played.";
             return;
         }
 
+        outputDiv.innerHTML = ""; 
+        const chords = groupNotesIntoChords(notesData);
+
         const renderer = new VF.Renderer(outputDiv, VF.Renderer.Backends.SVG);
-        const staveWidth = Math.max(500, notesData.length * 80); 
-        renderer.resize(staveWidth + 50, 200);
-        
+        const staveWidth = Math.max(500, chords.length * 100); // More space per chord
+        renderer.resize(staveWidth + 50, 350); // Taller for Grand Staff
         const context = renderer.getContext();
-        const stave = new VF.Stave(10, 40, staveWidth);
-        stave.addClef("treble").setContext(context).draw();
+
+        // Top Staff (Treble)
+        const topStave = new VF.Stave(10, 40, staveWidth);
+        topStave.addClef("treble").setContext(context).draw();
+
+        // Bottom Staff (Bass)
+        const bottomStave = new VF.Stave(10, 160, staveWidth);
+        bottomStave.addClef("bass").setContext(context).draw();
+
+        // Connect them with a brace
+        const brace = new VF.StaveConnector(topStave, bottomStave).setType(3);
+        const lineLeft = new VF.StaveConnector(topStave, bottomStave).setType(1);
+        brace.setContext(context).draw();
+        lineLeft.setContext(context).draw();
 
         let totalBeats = 0;
-        const vexFlowNotes = notesData.map(note => {
-            const pitchStr = getVexFlowPitch(note.pitch);
-            const timingInfo = getVexFlowDurationInfo(note.duration);
-            
-            totalBeats += timingInfo.beats;
+        let trebleNotes = [];
+        let bassNotes = [];
+        const showNames = showNamesCheck.checked;
 
-            let staveNote = new VF.StaveNote({ 
-                clef: "treble", 
-                keys: [pitchStr], 
-                duration: timingInfo.durationStr 
+        // Process each chord
+        chords.forEach(chordGroup => {
+            let tPitches = [];
+            let bPitches = [];
+            let maxDuration = 0;
+
+            // Separate notes by staff (Middle C is MIDI 60)
+            chordGroup.forEach(n => {
+                if (n.duration > maxDuration) maxDuration = n.duration;
+                if (n.pitch >= 60) tPitches.push(n.pitch);
+                else bPitches.push(n.pitch);
             });
 
-            if (pitchStr.includes("#")) {
-                staveNote.addModifier(new VF.Accidental("#"));
+            const timing = getVexFlowDurationInfo(maxDuration);
+            totalBeats += timing.beats;
+
+            // Helper to build a StaveNote or a Rest
+            function buildNote(pitches, clef) {
+                if (pitches.length === 0) {
+                    // Create an invisible rest so alignment holds
+                    return new VF.StaveNote({ 
+                        clef: clef, 
+                        keys: [clef === 'treble' ? "b/4" : "d/3"], 
+                        duration: timing.durationStr + "r" 
+                    });
+                }
+
+                let keysStr = pitches.map(p => getVexFlowPitch(p));
+                let note = new VF.StaveNote({ clef: clef, keys: keysStr, duration: timing.durationStr });
+
+                // Add Accidentals and Names
+                let namesForAnnotation = [];
+                pitches.forEach((p, index) => {
+                    if (getVexFlowPitch(p).includes("#")) {
+                        note.addModifier(new VF.Accidental("#"), index);
+                    }
+                    namesForAnnotation.push(getPitchNameOnly(p));
+                });
+
+                // Add text annotation if checkbox is checked
+                if (showNames) {
+                    const textStr = namesForAnnotation.join(", ");
+                    const justify = clef === 'treble' ? VF.Annotation.VerticalJustify.TOP : VF.Annotation.VerticalJustify.BOTTOM;
+                    note.addModifier(new VF.Annotation(textStr).setVerticalJustification(justify));
+                }
+                return note;
             }
-            return staveNote;
+
+            trebleNotes.push(buildNote(tPitches, 'treble'));
+            bassNotes.push(buildNote(bPitches, 'bass'));
         });
 
-        const voice = new VF.Voice({ 
-            num_beats: totalBeats, 
-            beat_value: 4, 
-            resolution: VF.RESOLUTION 
-        });
+        // Add to voices
+        const trebleVoice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 }).setStrict(false);
+        trebleVoice.addTickables(trebleNotes);
         
-        voice.setStrict(false); 
-        voice.addTickables(vexFlowNotes);
+        const bassVoice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 }).setStrict(false);
+        bassVoice.addTickables(bassNotes);
 
-        new VF.Formatter().joinVoices([voice]).format([voice], staveWidth - 50);
-        voice.draw(context, stave);
+        // Format both voices together so they align perfectly vertically
+        new VF.Formatter().joinVoices([trebleVoice, bassVoice]).format([trebleVoice, bassVoice], staveWidth - 50);
 
-        statusText.innerText = `Status: Sheet music generated (${notesData.length} notes).`;
+        trebleVoice.draw(context, topStave);
+        bassVoice.draw(context, bottomStave);
+
+        statusText.innerText = `Status: Rendered Grand Staff with ${chords.length} chords/notes.`;
     }
-
-}); // End of DOMContentLoaded
+});
