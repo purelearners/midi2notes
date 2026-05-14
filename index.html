@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI to Sheet Music Recorder</title>
     <link rel="stylesheet" href="style.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/midi-writer-js.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>MIDI Recorder</h1>
+        <h1>MIDI Recorder & Exporter</h1>
         
         <div class="controls">
             <button id="startBtn">🔴 Start Recording</button>
@@ -19,6 +21,20 @@
                 <input type="checkbox" id="showNamesCheck" checked>
                 <label for="showNamesCheck">Display Note Names</label>
             </div>
+        </div>
+
+        <div class="export-panel" id="exportPanel" style="display: none;">
+            <div class="radio-group">
+                <input type="radio" id="exportSVG" name="exportFormat" value="svg" checked>
+                <label for="exportSVG">Printable Sheet (SVG)</label>
+
+                <input type="radio" id="exportMIDI" name="exportFormat" value="midi">
+                <label for="exportMIDI">Audio Playback (MIDI)</label>
+
+                <input type="radio" id="exportXML" name="exportFormat" value="xml">
+                <label for="exportXML">Editable Data (MusicXML)</label>
+            </div>
+            <button id="downloadBtn">⬇️ Download File</button>
         </div>
         
         <div class="status-panel">
