@@ -6,32 +6,48 @@
     <title>MIDI to Sheet Music Recorder</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- VexFlow for Rendering Sheet Music (Must be v4.2.2) -->
+    <!-- VexFlow for Rendering (Must be v4.2.2) -->
     <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
-    
-    <!-- MidiWriterJS for generating .mid audio files -->
+    <!-- MidiWriterJS for Audio -->
     <script src="https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/browser/midiwriter.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>MIDI Recorder & Exporter</h1>
         
-        <!-- Main Recording Controls -->
-        <div class="controls">
-            <button id="startBtn">🔴 Start Recording</button>
-            <button id="stopBtn" disabled>⏹️ Stop & Render</button>
-            
-            <div class="options">
-                <input type="checkbox" id="showNamesCheck" checked>
-                <label for="showNamesCheck">Display Note Names</label>
+        <!-- Controls & Settings -->
+        <div class="controls-wrapper">
+            <div class="settings-panel">
+                <div class="setting-item">
+                    <label for="timeSigSelect">Time Signature:</label>
+                    <select id="timeSigSelect">
+                        <option value="4/4" selected>4/4</option>
+                        <option value="3/4">3/4</option>
+                        <option value="2/4">2/4</option>
+                        <option value="6/8">6/8</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="tempoInput">Tempo (BPM):</label>
+                    <input type="number" id="tempoInput" value="120" min="40" max="240">
+                </div>
+                <div class="setting-item checkbox-item">
+                    <input type="checkbox" id="showNamesCheck" checked>
+                    <label for="showNamesCheck">Display Note Names</label>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="startBtn">🔴 Start Recording</button>
+                <button id="stopBtn" disabled>⏹️ Stop & Render</button>
             </div>
         </div>
 
-        <!-- Export Panel (Hidden by default until recording stops) -->
+        <!-- Export Panel -->
         <div class="export-panel" id="exportPanel" style="display: none;">
             <div class="radio-group">
                 <input type="radio" id="exportSVG" name="exportFormat" value="svg" checked>
-                <label for="exportSVG">Printable Sheet (SVG)</label>
+                <label for="exportSVG">Printable Sheet (A4 SVG)</label>
 
                 <input type="radio" id="exportMIDI" name="exportFormat" value="midi">
                 <label for="exportMIDI">Audio Playback (MIDI)</label>
@@ -42,21 +58,20 @@
             <button id="downloadBtn">⬇️ Download File</button>
         </div>
         
-        <!-- Status Tracker -->
         <div class="status-panel">
             <p id="status">Status: Loading...</p>
         </div>
         
-        <!-- Virtual Piano Interface -->
         <div class="piano-wrapper">
             <div id="piano" class="piano"></div>
         </div>
         
-        <!-- Generated Sheet Music Container -->
-        <div id="sheet-music-output"></div>
+        <!-- The Output is now formatted for A4 proportions -->
+        <div class="sheet-music-wrapper">
+            <div id="sheet-music-output"></div>
+        </div>
     </div>
 
-    <!-- Main Logic -->
     <script src="app.js"></script>
 </body>
 </html>
